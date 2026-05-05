@@ -8,6 +8,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { AlertCircle } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { Geolocation } from '@capacitor/geolocation';
+import { PushNotifications } from '@capacitor/push-notifications';
 import { AppScreen, Trip, WeatherData } from './types';
 import HomeScreen from './components/HomeScreen';
 import TripOverviewScreen from './components/TripOverviewScreen';
@@ -60,15 +61,24 @@ export default function App() {
     const requestPermissions = async () => {
       if (Capacitor.isNativePlatform()) {
         // Wait a bit to ensure native bridge is ready
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        await new Promise(resolve => setTimeout(resolve, 2000));
         try {
-          // Check/Request Location
+          // 1. Request Location with updated status notification
           const locStatus = await Geolocation.checkPermissions();
           if (locStatus.location !== 'granted') {
-            await Geolocation.requestPermissions();
+            const requestStatus = await Geolocation.requestPermissions();
+            if (requestStatus.location !== 'granted') {
+              triggerNotification("O acesso ao GPS é fundamental para a navegação. Por favor, autorize nas configurações.");
+            }
+          }
+
+          // 2. Request Notifications (Android 13+)
+          const pushStatus = await PushNotifications.checkPermissions();
+          if (pushStatus.receive !== 'granted') {
+            await PushNotifications.requestPermissions();
           }
         } catch (e: any) {
-          console.error("Location permission failed:", e);
+          console.error("Native permissions failure:", e);
         }
       }
     };

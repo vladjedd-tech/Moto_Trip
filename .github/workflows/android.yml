@@ -34,21 +34,22 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Capacitor Android Sync
+      - name: Capacitor Android Setup
         run: |
-          npx cap init MotoTrip com.mototrip.app --web-dir dist || true
-          if [ ! -d "android" ]; then
-            npx cap add android
+          # Clean start for android platform to ensure fresh configs
+          if [ -d "android" ]; then
+            rm -rf android
           fi
+          npx cap add android
           npx cap sync android
 
-      - name: Inject Android Permissions & Config
+      - name: Robust Manifest Permission Injection
         run: |
           MANIFEST="android/app/src/main/AndroidManifest.xml"
           if [ -f "$MANIFEST" ]; then
-            echo "Manifest found at $MANIFEST. Injecting permissions..."
+            echo "Injecting permissions into $MANIFEST..."
             
-            # Remove any existing to avoid duplicates
+            # Clean up existing to avoid duplicates
             sed -i '/android.permission.ACCESS_COARSE_LOCATION/d' $MANIFEST
             sed -i '/android.permission.ACCESS_FINE_LOCATION/d' $MANIFEST
             sed -i '/android.permission.ACCESS_BACKGROUND_LOCATION/d' $MANIFEST
@@ -57,8 +58,7 @@ jobs:
             sed -i '/android.permission.POST_NOTIFICATIONS/d' $MANIFEST
             sed -i '/android.hardware.location.gps/d' $MANIFEST
 
-            # Inject permissions BEFORE the <application tag
-            # Added POST_NOTIFICATIONS for Android 13+
+            # Inject one by one before <application tag
             sed -i '/<application/i \    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />' $MANIFEST
             sed -i '/<application/i \    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />' $MANIFEST
             sed -i '/<application/i \    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />' $MANIFEST
@@ -67,15 +67,18 @@ jobs:
             sed -i '/<application/i \    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />' $MANIFEST
             sed -i '/<application/i \    <uses-feature android:name="android.hardware.location.gps" android:required="false" />' $MANIFEST
             
-            # Enable PiP and config changes in the activity
+            # Enable Picture-in-Picture
             sed -i 's/<activity/<activity android:supportsPictureInPicture="true" android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"/g' $MANIFEST
             
-            echo "Manifest updated successfully. Verifying content:"
+            echo "Manifest update complete. Current uses-permission tags:"
             grep "uses-permission" $MANIFEST
           else
-            echo "Critical Error: AndroidManifest.xml not found!"
+            echo "CRITICAL ERROR: AndroidManifest.xml not found!"
             exit 1
           fi
+
+      - name: Final Capacitor Sync
+        run: npx cap sync android
 
       - name: Build APK (Debug)
         run: |
@@ -86,5 +89,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: mototrip-app-debug-apk
+          name: rumo-app-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
