@@ -9,6 +9,7 @@ import { AlertCircle } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { Geolocation } from '@capacitor/geolocation';
 import { PushNotifications } from '@capacitor/push-notifications';
+import { Dialog } from '@capacitor/dialog';
 import { AppScreen, Trip, WeatherData } from './types';
 import HomeScreen from './components/HomeScreen';
 import TripOverviewScreen from './components/TripOverviewScreen';
@@ -60,35 +61,33 @@ export default function App() {
   useEffect(() => {
     const requestPermissions = async () => {
       if (Capacitor.isNativePlatform()) {
-        // Wait a bit to ensure native bridge is ready
-        await new Promise(resolve => setTimeout(resolve, 2000));
         try {
-          // 1. Request Location Precisely
-          const locStatus = await Geolocation.checkPermissions();
-          if (locStatus.location !== 'granted') {
-            const requestStatus = await Geolocation.requestPermissions();
-            if (requestStatus.location === 'granted') {
-              // Forced fetch with High Accuracy to ensure provider activation
-              await Geolocation.getCurrentPosition({ 
-                enableHighAccuracy: true, 
-                timeout: 5000 
-              }).catch(() => {});
+          // Wait a bit to ensure native bridge is ready
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          
+          // 1. Check/Request Geolocation
+          const locPerm = await Geolocation.checkPermissions();
+          if (locPerm.location !== 'granted') {
+            const req = await Geolocation.requestPermissions();
+            if (req.location === 'granted') {
               triggerNotification("GPS autorizado com sucesso!");
+              // Verify it's actually working
+              await Geolocation.getCurrentPosition({ enableHighAccuracy: true }).catch(() => {});
             } else {
-              triggerNotification("O acesso ao GPS é fundamental para o rastreio. Por favor, autorize nas configurações do Android.");
+              await Dialog.alert({
+                title: 'GPS Necessário',
+                message: 'O Rumo precisa do GPS para rastrear sua viagem. Por favor, autorize nas configurações do Android.',
+              });
             }
-          } else {
-            // Already granted, just ensure it's active
-            Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 2000 }).catch(() => {});
           }
 
-          // 2. Request Notifications (Android 13+)
-          const pushStatus = await PushNotifications.checkPermissions();
-          if (pushStatus.receive !== 'granted') {
+          // 2. Notifications
+          const pushPerm = await PushNotifications.checkPermissions();
+          if (pushPerm.receive !== 'granted') {
             await PushNotifications.requestPermissions();
           }
         } catch (e: any) {
-          console.error("Native permissions failure:", e);
+          console.error("Critical native init error:", e);
         }
       }
     };
