@@ -192,17 +192,20 @@ export default function App() {
     
     let isMounted = true;
     const getCityName = async () => {
+      if (!userCoords) return;
       try {
-        // Nominatim with specific zoom to avoid too much detail and get the city/region
-        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${userCoords.lat}&lon=${userCoords.lng}&format=json&accept-language=pt-BR&zoom=10`);
+        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${userCoords.lat}&lon=${userCoords.lng}&format=json&accept-language=pt-BR&zoom=10`, {
+          headers: {
+            'User-Agent': 'MotoTripApp/1.0 (contact: andersonfferreira1995@gmail.com)'
+          }
+        });
         const data = await response.json();
         if (isMounted && data.address) {
-          const city = data.address.city || data.address.town || data.address.village || data.address.municipality || data.address.suburb || 'Estrada';
+          const city = data.address.city || data.address.town || data.address.village || data.address.municipality || data.address.suburb || data.address.state_district || 'Em Trânsito';
           setCurrentCity(city);
         }
       } catch (e) {
         console.error("Reverse geocode failed:", e);
-        // Fallback instead of staying stuck
         if (isMounted) setCurrentCity('Em Trânsito');
       }
     };
@@ -289,34 +292,37 @@ export default function App() {
     if (isVideoPipActive && currentTrip) {
       interval = setInterval(async () => {
         try {
-          const updatedPoints = await Promise.all(
-            currentTrip.points.map(async (p) => {
-              const freshWeather = await fetchWeather(p.location.lat, p.location.lng);
-              return { ...p, weather: freshWeather };
-            })
-          );
+          const progress = tripProgress;
+          const currentDist = (progress / 100) * currentTrip.totalDistance;
+          const nextTarget = currentTrip.points.find(p => p.distance > currentDist) || currentTrip.points[currentTrip.points.length - 1];
+          const prevTarget = [...currentTrip.points].reverse().find(p => p.distance <= currentDist) || currentTrip.points[0];
+
+          // Just update the relevant weather points
+          const [freshPrev, freshNext] = await Promise.all([
+            fetchWeather(prevTarget.location.lat, prevTarget.location.lng),
+            fetchWeather(nextTarget.location.lat, nextTarget.location.lng)
+          ]);
           
           setCurrentTrip(prev => {
             if (!prev) return null;
-            return {
-              ...prev,
-              points: updatedPoints
-            };
+            const updatedPoints = prev.points.map(p => {
+              if (p.id === prevTarget.id) return { ...p, weather: freshPrev };
+              if (p.id === nextTarget.id) return { ...p, weather: freshNext };
+              return p;
+            });
+            return { ...prev, points: updatedPoints };
           });
           
-          // Re-trigger canvas render with fresh weather
           renderToCanvas();
-          
-          console.log("Weather updated for all points (periodic)");
         } catch (e) {
-          console.error("Failed to refresh weather in background:", e);
+          console.error("Failed to refresh weather periodically:", e);
         }
       }, 5 * 60 * 1000); // 5 minutes
     }
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isVideoPipActive, currentTrip?.id, renderToCanvas]);
+  }, [isVideoPipActive, currentTrip?.id, tripProgress, renderToCanvas]);
 
   useEffect(() => {
     let interval: any;

@@ -86,6 +86,8 @@ export default function TripOverviewScreen({
     // Using origin=My+Location ensures Google Maps offers the "Start" button for navigation
     // travelmode=two_wheeler selects motorcycle mode
     const url = `https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=${trip.destination.lat},${trip.destination.lng}${waypoints ? `&waypoints=${encodeURIComponent(waypoints)}` : ''}&travelmode=two_wheeler&dir_action=navigate`;
+    
+    // On native apps, we could try schemes like 'google.navigation:', but the universal link works well
     window.open(url, '_blank');
   };
 
