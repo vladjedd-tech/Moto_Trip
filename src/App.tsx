@@ -63,16 +63,23 @@ export default function App() {
         // Wait a bit to ensure native bridge is ready
         await new Promise(resolve => setTimeout(resolve, 2000));
         try {
-          // 1. Request Location
+          // 1. Request Location Precisely
           const locStatus = await Geolocation.checkPermissions();
           if (locStatus.location !== 'granted') {
             const requestStatus = await Geolocation.requestPermissions();
             if (requestStatus.location === 'granted') {
-              // Forced fetch to trigger provider check
-              await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 3000 }).catch(() => {});
+              // Forced fetch with High Accuracy to ensure provider activation
+              await Geolocation.getCurrentPosition({ 
+                enableHighAccuracy: true, 
+                timeout: 5000 
+              }).catch(() => {});
+              triggerNotification("GPS autorizado com sucesso!");
             } else {
-              triggerNotification("O acesso ao GPS é fundamental para o mapa. Por favor, autorize nas configurações.");
+              triggerNotification("O acesso ao GPS é fundamental para o rastreio. Por favor, autorize nas configurações do Android.");
             }
+          } else {
+            // Already granted, just ensure it's active
+            Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 2000 }).catch(() => {});
           }
 
           // 2. Request Notifications (Android 13+)

@@ -1,4 +1,4 @@
-name:Build Android APK
+name: Build Android APK
 
 on:
   push:
@@ -36,31 +36,19 @@ jobs:
 
       - name: Capacitor Android Setup
         run: |
-          # Fresh start para evitar lixo de builds anteriores
           if [ -d "android" ]; then
             rm -rf android
           fi
           npx cap add android
           npx cap sync android
 
-      - name: Inject Android Permissions (GPS & Notifications)
+      - name: Hardened Manifest Permission Injection
         run: |
           MANIFEST="android/app/src/main/AndroidManifest.xml"
           if [ -f "$MANIFEST" ]; then
-            echo "Manifest encontrado em $MANIFEST. Injetando permissões..."
+            echo "Injetando permissões críticas no Manifesto..."
             
-            # Criamos um arquivo temporário com as permissões que queremos
-            cat <<EOF > perms.txt
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
-EOF
-            
-            # Removemos qualquer tentativa anterior para evitar duplicatas e erros
+            # Removemos qualquer declaração existente para evitar conflitos
             sed -i '/android.permission.ACCESS_COARSE_LOCATION/d' $MANIFEST
             sed -i '/android.permission.ACCESS_FINE_LOCATION/d' $MANIFEST
             sed -i '/android.permission.ACCESS_BACKGROUND_LOCATION/d' $MANIFEST
@@ -69,18 +57,21 @@ EOF
             sed -i '/android.permission.POST_NOTIFICATIONS/d' $MANIFEST
             sed -i '/android.hardware.location.gps/d' $MANIFEST
 
-            # Injetamos o conteúdo de perms.txt ANTES da tag <application
-            sed -i '/<application/i \PLACEHOLDER' $MANIFEST
-            sed -i '/PLACEHOLDER/r perms.txt' $MANIFEST
-            sed -i '/PLACEHOLDER/d' $MANIFEST
+            # Criamos o bloco de permissões (Padrão Android 12/13+)
+            # Fine Location e Coarse Location são essenciais
+            PERMS='    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />\n    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <uses-feature android:name="android.hardware.location.gps" android:required="true" />'
             
-            # Ativamos o Picture-in-Picture e correções de rotação na atividade principal
+            # Injetamos imediatamente após a tag <manifest ...>
+            # Isso garante que o Android veja as permissões antes de qualquer erro no resto do XML
+            sed -i "/<manifest/a $PERMS" $MANIFEST
+            
+            # Habilitamos Picture-in-Picture e correções de configuração
             sed -i 's/<activity/<activity android:supportsPictureInPicture="true" android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"/g' $MANIFEST
             
-            echo "Permissões injetadas com sucesso. Verificando XML:"
+            echo "Manifesto injetado. Conteúdo verificado:"
             grep "uses-permission" $MANIFEST
           else
-            echo "ERRO CRÍTICO: AndroidManifest.xml não encontrado!"
+            echo "Erro Crítico: Manifesto não encontrado no caminho $MANIFEST"
             exit 1
           fi
 
