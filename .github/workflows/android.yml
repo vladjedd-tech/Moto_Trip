@@ -1,4 +1,4 @@
-name: Build Android APK (Rumo - Fixed GPS)
+name: Build Android APK (Rumo - Final Fix)
 
 on:
   push:
@@ -34,64 +34,54 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Capacitor Fresh Add
+      - name: Capacitor Fresh Install
         run: |
           rm -rf android
           npx cap add android
 
-      - name: Hardened Permission Injection
+      - name: Super Manifest Permission Injection
         run: |
           MANIFEST="android/app/src/main/AndroidManifest.xml"
           if [ -f "$MANIFEST" ]; then
-            echo "Injetando permissões críticas no Manifesto..."
+            echo "Formatando o Manifesto com permissões definitivas..."
             
-            # Criamos o bloco de permissões limpo e explícito
-            cat <<EOF > perms.xml
-    <!-- Permissões de Localização (GPS) -->
+            # Criamos o bloco de permissões que OBRIGATORIAMENTE deve estar no topo
+            cat <<EOF > perms_final.xml
+    <!-- PERMISSÕES DE LOCALIZAÇÃO CRÍTICAS -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     
-    <!-- Permissões de Sistema e Redes -->
+    <!-- PERMISSÕES DE REDE E NOTIFICAÇÃO -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     
-    <!-- Permissões de Notificação (Android 13+) -->
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    
-    <!-- Requisitos de Hardware -->
+    <!-- HARDWARE -->
     <uses-feature android:name="android.hardware.location.gps" android:required="true" />
 EOF
 
-            # Removemos qualquer tentativa anterior para não duplicar
-            sed -i '/android.permission.ACCESS_COARSE_LOCATION/d' $MANIFEST
-            sed -i '/android.permission.ACCESS_FINE_LOCATION/d' $MANIFEST
-            sed -i '/android.permission.ACCESS_BACKGROUND_LOCATION/d' $MANIFEST
-            sed -i '/android.permission.FOREGROUND_SERVICE/d' $MANIFEST
-            sed -i '/android.permission.INTERNET/d' $MANIFEST
-            sed -i '/android.permission.ACCESS_NETWORK_STATE/d' $MANIFEST
-            sed -i '/android.permission.WAKE_LOCK/d' $MANIFEST
-            sed -i '/android.permission.POST_NOTIFICATIONS/d' $MANIFEST
+            # Limpeza total de menções anteriores
+            sed -i '/android.permission/d' $MANIFEST
             sed -i '/android.hardware.location.gps/d' $MANIFEST
 
-            # Inserção Robusta: Injetamos logo abaixo da tag <manifest
-            sed -i '/<manifest/r perms.xml' $MANIFEST
+            # Injeção logo após a tag de abertura <manifest>
+            sed -i '/<manifest/r perms_final.xml' $MANIFEST
             
-            # Ativamos o Picture-in-Picture na Activity Principal
-            # Substituímos a tag de abertura da atividade para incluir o PiP
+            # Ajuste de Atividade para suportar tudo (PiP, Rotação, etc)
             sed -i 's/<activity/<activity android:supportsPictureInPicture="true" android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"/g' $MANIFEST
             
-            echo "Manifesto injetado. Verificação de permissões:"
-            grep "uses-permission" $MANIFEST
+            echo "Manifesto processado. Verificando resultado:"
+            cat $MANIFEST | grep -E "uses-permission|uses-feature"
           else
-            echo "ERRO CRÍTICO: Manifesto não encontrado!"
+            echo "ERRO: Manifesto não encontrado no path padrão!"
             exit 1
           fi
 
-      - name: Final Capacitor Sync
+      - name: Capacitor Sync
         run: npx cap sync android
 
       - name: Build APK (Debug)
@@ -103,5 +93,5 @@ EOF
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: rumo-app-debug
+          name: rumo-app-v6-fixed
           path: android/app/build/outputs/apk/debug/app-debug.apk
