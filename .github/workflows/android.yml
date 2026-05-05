@@ -13,13 +13,7 @@ jobs:
       - name: Checkout Source
         uses: actions/checkout@v4
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'zulu'
-          java-version: '17'
-
-      - name: Setup Node.js
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -28,33 +22,41 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
-      - name: Build Web Project
+      - name: Build Web App
         run: npm run build
 
-      - name: Setup Android SDK
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Add Android Platform
+      - name: Install Capacitor Android
         run: |
           if [ ! -d "android" ]; then
             npx cap add android
           fi
 
-      - name: Inject Android Permissions
+      - name: Configure Android Permissions
         run: |
           MANIFEST="android/app/src/main/AndroidManifest.xml"
-          # Adiciona permissões se não existirem
-          sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />' $MANIFEST
-          sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />' $MANIFEST
-          sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />' $MANIFEST
-          sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.INTERNET" />' $MANIFEST
-          # Permitir PiP e Background
-          sed -i 's/<activity/<activity android:supportsPictureInPicture="true" android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"/g' $MANIFEST
+          if [ -f "$MANIFEST" ]; then
+            # Add permissions
+            sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />' $MANIFEST
+            sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />' $MANIFEST
+            sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />' $MANIFEST
+            sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.INTERNET" />' $MANIFEST
+            # Enable PiP
+            sed -i 's/<activity/<activity android:supportsPictureInPicture="true" android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"/g' $MANIFEST
+          fi
 
       - name: Capacitor Sync
         run: npx cap sync android
 
-      - name: Build Android APK
+      - name: Build APK
         run: |
           cd android
           chmod +x gradlew
@@ -63,5 +65,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: mototrip-app-debug
+          name: mototrip-app-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
