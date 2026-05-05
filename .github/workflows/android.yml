@@ -1,4 +1,4 @@
-name: Build Android APK
+name:Build Android APK
 
 on:
   push:
@@ -36,19 +36,31 @@ jobs:
 
       - name: Capacitor Android Setup
         run: |
+          # Fresh start para evitar lixo de builds anteriores
           if [ -d "android" ]; then
             rm -rf android
           fi
           npx cap add android
           npx cap sync android
 
-      - name: Safe Manifest Permission Injection
+      - name: Inject Android Permissions (GPS & Notifications)
         run: |
           MANIFEST="android/app/src/main/AndroidManifest.xml"
           if [ -f "$MANIFEST" ]; then
-            echo "Manifest found. Injecting permissions safely..."
+            echo "Manifest encontrado em $MANIFEST. Injetando permissões..."
             
-            # Remove existing to avoid duplicates
+            # Criamos um arquivo temporário com as permissões que queremos
+            cat <<EOF > perms.txt
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+EOF
+            
+            # Removemos qualquer tentativa anterior para evitar duplicatas e erros
             sed -i '/android.permission.ACCESS_COARSE_LOCATION/d' $MANIFEST
             sed -i '/android.permission.ACCESS_FINE_LOCATION/d' $MANIFEST
             sed -i '/android.permission.ACCESS_BACKGROUND_LOCATION/d' $MANIFEST
@@ -57,29 +69,22 @@ jobs:
             sed -i '/android.permission.POST_NOTIFICATIONS/d' $MANIFEST
             sed -i '/android.hardware.location.gps/d' $MANIFEST
 
-            # Inject before the <application tag using a safer syntax
-            PERMISSIONS="\
-    <uses-permission android:name=\"android.permission.ACCESS_COARSE_LOCATION\" \/>\n\
-    <uses-permission android:name=\"android.permission.ACCESS_FINE_LOCATION\" \/>\n\
-    <uses-permission android:name=\"android.permission.ACCESS_BACKGROUND_LOCATION\" \/>\n\
-    <uses-permission android:name=\"android.permission.INTERNET\" \/>\n\
-    <uses-permission android:name=\"android.permission.ACCESS_NETWORK_STATE\" \/>\n\
-    <uses-permission android:name=\"android.permission.POST_NOTIFICATIONS\" \/>\n\
-    <uses-feature android:name=\"android.hardware.location.gps\" android:required=\"false\" \/>"
+            # Injetamos o conteúdo de perms.txt ANTES da tag <application
+            sed -i '/<application/i \PLACEHOLDER' $MANIFEST
+            sed -i '/PLACEHOLDER/r perms.txt' $MANIFEST
+            sed -i '/PLACEHOLDER/d' $MANIFEST
             
-            sed -i "s/<application/    $PERMISSIONS\n    <application/" $MANIFEST
-            
-            # Enable Picture-in-Picture
+            # Ativamos o Picture-in-Picture e correções de rotação na atividade principal
             sed -i 's/<activity/<activity android:supportsPictureInPicture="true" android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"/g' $MANIFEST
             
-            echo "Manifest updated. Verifying syntax..."
+            echo "Permissões injetadas com sucesso. Verificando XML:"
             grep "uses-permission" $MANIFEST
           else
-            echo "CRITICAL ERROR: AndroidManifest.xml not found!"
+            echo "ERRO CRÍTICO: AndroidManifest.xml não encontrado!"
             exit 1
           fi
 
-      - name: Capacitor Final Sync
+      - name: Final Capacitor Sync
         run: npx cap sync android
 
       - name: Build APK (Debug)
