@@ -34,27 +34,28 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Add Android Platform
+      - name: Capacitor Android Sync
         run: |
           if [ ! -d "android" ]; then
             npx cap add android
+          else
+            npx cap sync android
           fi
 
-      - name: Inject Android Permissions
+      - name: Inject Android Permissions & Config
         run: |
           MANIFEST="android/app/src/main/AndroidManifest.xml"
           if [ -f "$MANIFEST" ]; then
-            # Add permissions to manifest
+            # Add permissions to manifest before the closing </manifest> tag
             sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />' $MANIFEST
             sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />' $MANIFEST
             sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />' $MANIFEST
             sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.INTERNET" />' $MANIFEST
-            # Enable PiP and config changes
+            
+            # Enable PiP and config changes in the activity
+            # We target the main activity
             sed -i 's/<activity/<activity android:supportsPictureInPicture="true" android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"/g' $MANIFEST
           fi
-
-      - name: Capacitor Sync
-        run: npx cap sync android
 
       - name: Build APK (Debug)
         run: |
