@@ -52,6 +52,7 @@ jobs:
             sed -i '/android.permission.ACCESS_BACKGROUND_LOCATION/d' $MANIFEST
             sed -i '/android.permission.INTERNET/d' $MANIFEST
             sed -i '/android.permission.ACCESS_NETWORK_STATE/d' $MANIFEST
+            sed -i '/android.hardware.location.gps/d' $MANIFEST
 
             # Add permissions to manifest before the closing </manifest> tag
             sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />' $MANIFEST
@@ -59,8 +60,10 @@ jobs:
             sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />' $MANIFEST
             sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.INTERNET" />' $MANIFEST
             sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />' $MANIFEST
+            sed -i '/<\/manifest>/i \    <uses-feature android:name="android.hardware.location.gps" android:required="false" />' $MANIFEST
             
             # Enable PiP and config changes in the activity
+            # We target the main activity tag
             sed -i 's/<activity/<activity android:supportsPictureInPicture="true" android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"/g' $MANIFEST
           fi
 

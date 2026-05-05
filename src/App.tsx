@@ -59,19 +59,19 @@ export default function App() {
   useEffect(() => {
     const requestPermissions = async () => {
       if (Capacitor.isNativePlatform()) {
+        // Wait a bit to ensure native bridge is ready
+        await new Promise(resolve => setTimeout(resolve, 1000));
         try {
           const status = await Geolocation.checkPermissions();
-          console.log("Current location permission status:", status.location);
           if (status.location !== 'granted') {
             const requestStatus = await Geolocation.requestPermissions();
-            console.log("Requested location permission status:", requestStatus.location);
             if (requestStatus.location !== 'granted') {
-              triggerNotification("Permissão de localização é necessária para o GPS.");
+              triggerNotification("Permissão de localização negada. O GPS não funcionará.");
             }
           }
-        } catch (e) {
+        } catch (e: any) {
           console.error("Permission request failed:", e);
-          triggerNotification("Erro ao solicitar permissões nativas.");
+          triggerNotification(`Erro de permissão: ${e?.message || 'Erro desconhecido'}`);
         }
       }
     };
