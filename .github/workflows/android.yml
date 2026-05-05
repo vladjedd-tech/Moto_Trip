@@ -20,7 +20,7 @@ jobs:
           cache: 'npm'
 
       - name: Install Dependencies
-        run: npm install
+        run: npm install --legacy-peer-deps
 
       - name: Build Web App
         run: npm run build
@@ -34,24 +34,26 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Add Android Platform
+      - name: Capacitor Android Sync
         run: |
+          npx cap init MotoTrip com.mototrip.app --web-dir dist || true
           if [ ! -d "android" ]; then
             npx cap add android
           fi
+          npx cap sync android
 
       - name: Inject Android Permissions & Config
         run: |
           MANIFEST="android/app/src/main/AndroidManifest.xml"
           if [ -f "$MANIFEST" ]; then
-            # Clean up existing to avoid duplicates if re-running
+            # Clean up existing to avoid duplicates
             sed -i '/android.permission.ACCESS_COARSE_LOCATION/d' $MANIFEST
             sed -i '/android.permission.ACCESS_FINE_LOCATION/d' $MANIFEST
             sed -i '/android.permission.ACCESS_BACKGROUND_LOCATION/d' $MANIFEST
             sed -i '/android.permission.INTERNET/d' $MANIFEST
             sed -i '/android.permission.ACCESS_NETWORK_STATE/d' $MANIFEST
 
-            # Add permissions before the closing </manifest> tag
+            # Add permissions to manifest before the closing </manifest> tag
             sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />' $MANIFEST
             sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />' $MANIFEST
             sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />' $MANIFEST
@@ -61,9 +63,6 @@ jobs:
             # Enable PiP and config changes in the activity
             sed -i 's/<activity/<activity android:supportsPictureInPicture="true" android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"/g' $MANIFEST
           fi
-
-      - name: Capacitor Sync
-        run: npx cap sync android
 
       - name: Build APK (Debug)
         run: |

@@ -61,11 +61,17 @@ export default function App() {
       if (Capacitor.isNativePlatform()) {
         try {
           const status = await Geolocation.checkPermissions();
+          console.log("Current location permission status:", status.location);
           if (status.location !== 'granted') {
-            await Geolocation.requestPermissions();
+            const requestStatus = await Geolocation.requestPermissions();
+            console.log("Requested location permission status:", requestStatus.location);
+            if (requestStatus.location !== 'granted') {
+              triggerNotification("Permissão de localização é necessária para o GPS.");
+            }
           }
         } catch (e) {
           console.error("Permission request failed:", e);
+          triggerNotification("Erro ao solicitar permissões nativas.");
         }
       }
     };
