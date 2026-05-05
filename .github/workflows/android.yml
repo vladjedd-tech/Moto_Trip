@@ -36,20 +36,19 @@ jobs:
 
       - name: Capacitor Android Setup
         run: |
-          # Clean start for android platform to ensure fresh configs
           if [ -d "android" ]; then
             rm -rf android
           fi
           npx cap add android
           npx cap sync android
 
-      - name: Robust Manifest Permission Injection
+      - name: Force Inject Android Permissions
         run: |
           MANIFEST="android/app/src/main/AndroidManifest.xml"
           if [ -f "$MANIFEST" ]; then
-            echo "Injecting permissions into $MANIFEST..."
+            echo "Manifest found. Injecting permissions..."
             
-            # Clean up existing to avoid duplicates
+            # Removemos duplicatas
             sed -i '/android.permission.ACCESS_COARSE_LOCATION/d' $MANIFEST
             sed -i '/android.permission.ACCESS_FINE_LOCATION/d' $MANIFEST
             sed -i '/android.permission.ACCESS_BACKGROUND_LOCATION/d' $MANIFEST
@@ -58,26 +57,27 @@ jobs:
             sed -i '/android.permission.POST_NOTIFICATIONS/d' $MANIFEST
             sed -i '/android.hardware.location.gps/d' $MANIFEST
 
-            # Inject one by one before <application tag
-            sed -i '/<application/i \    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />' $MANIFEST
-            sed -i '/<application/i \    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />' $MANIFEST
-            sed -i '/<application/i \    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />' $MANIFEST
-            sed -i '/<application/i \    <uses-permission android:name="android.permission.INTERNET" />' $MANIFEST
-            sed -i '/<application/i \    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />' $MANIFEST
-            sed -i '/<application/i \    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />' $MANIFEST
-            sed -i '/<application/i \    <uses-feature android:name="android.hardware.location.gps" android:required="false" />' $MANIFEST
+            # Criamos o bloco de permissões
+            # Injetamos logo abaixo da tag de abertura do manifest para máxima prioridade
+            sed -i '/<manifest/a \    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />' $MANIFEST
+            sed -i '/<manifest/a \    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />' $MANIFEST
+            sed -i '/<manifest/a \    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />' $MANIFEST
+            sed -i '/<manifest/a \    <uses-permission android:name="android.permission.INTERNET" />' $MANIFEST
+            sed -i '/<manifest/a \    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />' $MANIFEST
+            sed -i '/<manifest/a \    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />' $MANIFEST
+            sed -i '/<manifest/a \    <uses-feature android:name="android.hardware.location.gps" android:required="false" />' $MANIFEST
             
-            # Enable Picture-in-Picture
+            # Configuração Picture-in-Picture
             sed -i 's/<activity/<activity android:supportsPictureInPicture="true" android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"/g' $MANIFEST
             
-            echo "Manifest update complete. Current uses-permission tags:"
+            echo "Verifying manifest permissions:"
             grep "uses-permission" $MANIFEST
           else
-            echo "CRITICAL ERROR: AndroidManifest.xml not found!"
+            echo "Error: Manifest not found!"
             exit 1
           fi
 
-      - name: Final Capacitor Sync
+      - name: Capacitor Final Sync
         run: npx cap sync android
 
       - name: Build APK (Debug)

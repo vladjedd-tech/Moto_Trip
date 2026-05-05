@@ -63,12 +63,15 @@ export default function App() {
         // Wait a bit to ensure native bridge is ready
         await new Promise(resolve => setTimeout(resolve, 2000));
         try {
-          // 1. Request Location with updated status notification
+          // 1. Request Location
           const locStatus = await Geolocation.checkPermissions();
           if (locStatus.location !== 'granted') {
             const requestStatus = await Geolocation.requestPermissions();
-            if (requestStatus.location !== 'granted') {
-              triggerNotification("O acesso ao GPS é fundamental para a navegação. Por favor, autorize nas configurações.");
+            if (requestStatus.location === 'granted') {
+              // Forced fetch to trigger provider check
+              await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 3000 }).catch(() => {});
+            } else {
+              triggerNotification("O acesso ao GPS é fundamental para o mapa. Por favor, autorize nas configurações.");
             }
           }
 
