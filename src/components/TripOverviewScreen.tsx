@@ -32,6 +32,8 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
+import { Browser } from '@capacitor/browser';
+import { Capacitor } from '@capacitor/core';
 
 interface TripOverviewProps {
   trip: Trip;
@@ -57,6 +59,14 @@ export default function TripOverviewScreen({
   const [customKm, setCustomKm] = useState('');
   const [isAddingStop, setIsAddingStop] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const openUrl = async (url: string) => {
+    if (Capacitor.isNativePlatform()) {
+      await Browser.open({ url });
+    } else {
+      window.open(url, '_blank');
+    }
+  };
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -88,7 +98,7 @@ export default function TripOverviewScreen({
     const url = `https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=${trip.destination.lat},${trip.destination.lng}${waypoints ? `&waypoints=${encodeURIComponent(waypoints)}` : ''}&travelmode=two_wheeler&dir_action=navigate`;
     
     // On native apps, we could try schemes like 'google.navigation:', but the universal link works well
-    window.open(url, '_blank');
+    openUrl(url);
   };
 
   const handleAddStop = async () => {
@@ -328,7 +338,11 @@ function PointCard({ point, isLast }: { point: TripPoint, isLast: boolean, key?:
             <button 
               onClick={() => {
                 const url = `https://www.google.com/maps/dir/?api=1&destination=${point.location.lat},${point.location.lng}&travelmode=two_wheeler&dir_action=navigate`;
-                window.open(url, '_blank');
+                if (Capacitor.isNativePlatform()) {
+                  Browser.open({ url });
+                } else {
+                  window.open(url, '_blank');
+                }
               }}
               className="mt-2 flex items-center gap-1 text-[10px] font-bold text-orange-500 uppercase tracking-widest hover:text-orange-400 transition-colors"
             >

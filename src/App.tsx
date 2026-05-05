@@ -6,6 +6,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { AlertCircle } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
+import { Geolocation } from '@capacitor/geolocation';
 import { AppScreen, Trip, WeatherData } from './types';
 import HomeScreen from './components/HomeScreen';
 import TripOverviewScreen from './components/TripOverviewScreen';
@@ -52,6 +54,23 @@ export default function App() {
   useEffect(() => {
     storageService.persistAppState(currentScreen, currentTrip);
   }, [currentScreen, currentTrip]);
+
+  // Request native permissions on startup
+  useEffect(() => {
+    const requestPermissions = async () => {
+      if (Capacitor.isNativePlatform()) {
+        try {
+          const status = await Geolocation.checkPermissions();
+          if (status.location !== 'granted') {
+            await Geolocation.requestPermissions();
+          }
+        } catch (e) {
+          console.error("Permission request failed:", e);
+        }
+      }
+    };
+    requestPermissions();
+  }, []);
 
   const triggerNotification = async (msg: string) => {
     setShowNotifications(prev => [...prev, msg]);
