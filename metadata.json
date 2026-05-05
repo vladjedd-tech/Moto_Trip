@@ -1,0 +1,14 @@
+{
+  "name": "Rumo",
+  "description": "Assistente de viagem premium para motociclistas. Planejamento de rotas, clima em tempo real e paradas de combustível.",
+  "requestFramePermissions": [
+    "geolocation",
+    "notifications",
+    "screen-wake-lock"
+  ],
+  "majorCapabilities": [
+    "Google Maps Integration",
+    "Weather Forecasting",
+    "Real-time Route Tracking"
+  ]
+}
