@@ -1,83 +1,99 @@
-name: Android Build
+name: Gerar APK Rumo (Completo)
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [ main, master ]
   pull_request:
-    branches: [ "main", "master" ]
+    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
   build:
-    name: Build APK
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout Código
         uses: actions/checkout@v4
 
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-
-      - name: Set up Node
+      - name: Configurar Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: 'npm'
 
-      - name: Install dependencies
+      - name: Instalar Dependências
         run: npm install --legacy-peer-deps
 
-      - name: Build web
+      - name: Build do Web App
         run: npm run build
 
-      - name: Setup Android SDK
+      - name: Configurar Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Configurar Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Capacitor Setup
+      - name: Criar Projeto Android (Capacitor)
         run: |
           rm -rf android
           npx cap add android
 
-      - name: Inject Hardened Permissions
+      - name: Injetar Permissões (GPS, Notificações, Background)
         run: |
           MANIFEST="android/app/src/main/AndroidManifest.xml"
-          # Criamos as permissões necessárias
-          cat <<EOF > perms.txt
+          if [ -f "$MANIFEST" ]; then
+            echo "Formatando o Manifesto para modo Rumo..."
+            
+            # Bloco de permissões essenciais
+            cat <<EOF > perms.txt
+    <!-- Rumo: Permissões de Localização -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    
+    <!-- Rumo: Notificações e Sistema -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    
+    <!-- Hardware -->
     <uses-feature android:name="android.hardware.location.gps" android:required="true" />
 EOF
-          # Injetamos as permissões logo após a tag <manifest
-          sed -i '/<manifest/r perms.txt' $MANIFEST
-          
-          # Habilitamos suporte a Picture-in-Picture na Activity
-          sed -i 's/<activity/<activity android:supportsPictureInPicture="true" android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"/g' $MANIFEST
-          
-          echo "Manifesto injetado com sucesso."
 
-      - name: Capacitor Sync
+            # Limpa permissões padrão para evitar duplicidade
+            sed -i '/android.permission/d' $MANIFEST
+            sed -i '/android.hardware.location.gps/d' $MANIFEST
+
+            # Injeta as permissões no topo (após a tag <manifest)
+            sed -i '/<manifest/r perms.txt' $MANIFEST
+            
+            # Habilitar suporte a Picture-in-Picture e mudar configurações de atividade
+            sed -i 's/<activity/<activity android:supportsPictureInPicture="true" android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"/g' $MANIFEST
+            
+            echo "Manifesto injetado com sucesso."
+          else
+            echo "ERRO: Manifesto não encontrado!"
+            exit 1
+          fi
+
+      - name: Sincronizar Capacitor
         run: npx cap sync android
 
-      - name: Build with Gradle
+      - name: Compilar APK (Debug)
         run: |
           cd android
           chmod +x gradlew
           ./gradlew assembleDebug
 
-      - name: Upload Artifact
+      - name: Upload do APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
+          name: rumo-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk

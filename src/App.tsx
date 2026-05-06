@@ -58,6 +58,50 @@ export default function App() {
     storageService.persistAppState(currentScreen, currentTrip);
   }, [currentScreen, currentTrip]);
 
+  // NATIVE PERMISSIONS EFFECT
+  useEffect(() => {
+    const initNative = async () => {
+      if (Capacitor.isNativePlatform()) {
+        try {
+          // Aguarda a ponte nativa estar pronta
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          
+          // 1. GPS - Localização exata
+          const locPerm = await Geolocation.checkPermissions();
+          if (locPerm.location !== 'granted') {
+            const req = await Geolocation.requestPermissions();
+            if (req.location === 'granted') {
+              triggerNotification("GPS autorizado!");
+            } else {
+              await Dialog.alert({
+                title: 'GPS Necessário',
+                message: 'O Rumo precisa do seu GPS para rastrear a viagem. Por favor, autorize nas configurações.',
+              });
+            }
+          }
+
+          // 2. Notificações
+          await PushNotifications.requestPermissions();
+          await LocalNotifications.requestPermissions();
+          
+          // Agendar uma notificação de teste para confirmar que funciona
+          await LocalNotifications.schedule({
+            notifications: [{
+              title: "Rumo Ativado",
+              body: "Permissões de GPS e Notificações configuradas!",
+              id: 1,
+              schedule: { at: new Date(Date.now() + 1000) }
+            }]
+          });
+
+        } catch (e) {
+          console.error("Native Init Error:", e);
+        }
+      }
+    };
+    initNative();
+  }, []);
+
   const triggerNotification = async (msg: string) => {
     setShowNotifications(prev => [...prev, msg]);
     setTimeout(() => {

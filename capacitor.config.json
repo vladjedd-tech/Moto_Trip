@@ -1,8 +1,18 @@
 {
-  "appId": "com.ais.rumo",
+  "appId": "com.rumo.app",
   "appName": "Rumo",
   "webDir": "dist",
   "server": {
     "androidScheme": "https"
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    },
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_icon_config_sample",
+      "iconColor": "#4488ff",
+      "sound": "beep.wav"
+    }
   }
 }
