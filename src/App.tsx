@@ -57,48 +57,17 @@ export default function App() {
     storageService.persistAppState(currentScreen, currentTrip);
   }, [currentScreen, currentTrip]);
 
-  // Request native permissions on startup
-  useEffect(() => {
-    const requestPermissions = async () => {
-      if (Capacitor.isNativePlatform()) {
-        try {
-          // Wait a bit to ensure native bridge is ready
-          await new Promise(resolve => setTimeout(resolve, 3000));
-          
-          // 1. Check/Request Geolocation
-          const locPerm = await Geolocation.checkPermissions();
-          if (locPerm.location !== 'granted') {
-            const req = await Geolocation.requestPermissions();
-            if (req.location === 'granted') {
-              triggerNotification("GPS autorizado com sucesso!");
-              // Verify it's actually working
-              await Geolocation.getCurrentPosition({ enableHighAccuracy: true }).catch(() => {});
-            } else {
-              await Dialog.alert({
-                title: 'GPS Necessário',
-                message: 'O Rumo precisa do GPS para rastrear sua viagem. Por favor, autorize nas configurações do Android.',
-              });
-            }
-          }
-
-          // 2. Notifications
-          const pushPerm = await PushNotifications.checkPermissions();
-          if (pushPerm.receive !== 'granted') {
-            await PushNotifications.requestPermissions();
-          }
-        } catch (e: any) {
-          console.error("Critical native init error:", e);
-        }
-      }
-    };
-    requestPermissions();
-  }, []);
-
   const triggerNotification = async (msg: string) => {
     setShowNotifications(prev => [...prev, msg]);
     setTimeout(() => {
       setShowNotifications(prev => prev.filter(m => m !== msg));
     }, 5000);
+
+    // Capacitor Native Push (if applicable) or Web Notification
+    if (Capacitor.isNativePlatform()) {
+      // In native we might use LocalNotifications if needed, 
+      // but for now let's keep it simple as standard UI notifications are already working via showNotifications.
+    }
 
     if ("Notification" in window && Notification.permission === "granted") {
       try {
@@ -117,6 +86,41 @@ export default function App() {
       }
     }
   };
+
+  // NATIVE PERMISSIONS EFFECT
+  useEffect(() => {
+    const initNative = async () => {
+      if (Capacitor.isNativePlatform()) {
+        try {
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          
+          // GPS
+          const locPerm = await Geolocation.checkPermissions();
+          if (locPerm.location !== 'granted') {
+            const req = await Geolocation.requestPermissions();
+            if (req.location === 'granted') {
+              triggerNotification("GPS autorizado com sucesso!");
+              await Geolocation.getCurrentPosition({ enableHighAccuracy: true }).catch(() => {});
+            } else {
+              await Dialog.alert({
+                title: 'GPS Necessário',
+                message: 'O Rumo precisa do GPS para rastrear sua viagem. Por favor, autorize nas configurações do Android.',
+              });
+            }
+          }
+
+          // Push
+          const pushPerm = await PushNotifications.checkPermissions();
+          if (pushPerm.receive !== 'granted') {
+            await PushNotifications.requestPermissions();
+          }
+        } catch (e) {
+          console.error("Init Error:", e);
+        }
+      }
+    };
+    initNative();
+  }, []);
 
   // TRIP ENGINE: Geolocation Tracking
   useEffect(() => {

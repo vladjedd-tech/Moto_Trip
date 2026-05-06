@@ -1,4 +1,4 @@
-name: Build Android APK (Rumo - Final Fix)
+name: Build Android APK (Rumo - Final)
 
 on:
   push:
@@ -34,50 +34,52 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Capacitor Fresh Install
+      - name: Capacitor Fresh Add
         run: |
           rm -rf android
           npx cap add android
 
-      - name: Super Manifest Permission Injection
+      - name: Hardened Permission Injection
         run: |
           MANIFEST="android/app/src/main/AndroidManifest.xml"
           if [ -f "$MANIFEST" ]; then
-            echo "Formatando o Manifesto com permissões definitivas..."
+            echo "Injetando permissões nativas completas..."
             
-            # Criamos o bloco de permissões que OBRIGATORIAMENTE deve estar no topo
-            cat <<EOF > perms_final.xml
-    <!-- PERMISSÕES DE LOCALIZAÇÃO CRÍTICAS -->
+            cat <<EOF > perms.xml
+    <!-- Localização e Movimento -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     
-    <!-- PERMISSÕES DE REDE E NOTIFICAÇÃO -->
+    <!-- Comunicação e Notificações -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
     
-    <!-- HARDWARE -->
+    <!-- Sistema e Avançadas -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    
+    <!-- Hardware -->
     <uses-feature android:name="android.hardware.location.gps" android:required="true" />
 EOF
 
-            # Limpeza total de menções anteriores
+            # Limpeza
             sed -i '/android.permission/d' $MANIFEST
             sed -i '/android.hardware.location.gps/d' $MANIFEST
 
-            # Injeção logo após a tag de abertura <manifest>
-            sed -i '/<manifest/r perms_final.xml' $MANIFEST
+            # Injeção
+            sed -i '/<manifest/r perms.xml' $MANIFEST
             
-            # Ajuste de Atividade para suportar tudo (PiP, Rotação, etc)
+            # Picture-in-Picture e Configurações de Atividade
             sed -i 's/<activity/<activity android:supportsPictureInPicture="true" android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"/g' $MANIFEST
             
-            echo "Manifesto processado. Verificando resultado:"
-            cat $MANIFEST | grep -E "uses-permission|uses-feature"
+            echo "Manifesto atualizado com sucesso."
           else
-            echo "ERRO: Manifesto não encontrado no path padrão!"
+            echo "Erro: Manifesto não encontrado!"
             exit 1
           fi
 
@@ -93,5 +95,5 @@ EOF
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: rumo-app-v6-fixed
+          name: rumo-app-v7-final
           path: android/app/build/outputs/apk/debug/app-debug.apk
