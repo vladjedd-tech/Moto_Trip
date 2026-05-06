@@ -1,4 +1,4 @@
-name: Gerar APK Rumo (Completo)
+name: Build Rumo APK (Native + GPS Fixed)
 
 on:
   push:
@@ -11,89 +11,106 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Código
+      - name: Checkout Source
         uses: actions/checkout@v4
 
-      - name: Configurar Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: 'npm'
 
-      - name: Instalar Dependências
+      - name: Install Dependencies
         run: npm install --legacy-peer-deps
 
-      - name: Build do Web App
+      - name: Build Web Application
         run: npm run build
 
-      - name: Configurar Java 17
+      - name: Setup Java 21 (Temurin)
         uses: actions/setup-java@v4
         with:
-          distribution: 'zulu'
-          java-version: '17'
+          distribution: 'temurin'
+          java-version: '21'
 
-      - name: Configurar Android SDK
+      - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Criar Projeto Android (Capacitor)
+      - name: Initialize Capacitor Android
         run: |
           rm -rf android
           npx cap add android
 
-      - name: Injetar Permissões (GPS, Notificações, Background)
+      - name: Smart Asset Generation (Icon/Splash)
+        run: |
+          if [ -f "public/Icon.png" ]; then
+            echo "Icon.png encontrado. Gerando assets nativos..."
+            mkdir -p assets
+            cp public/Icon.png assets/icon.png
+            cp public/Icon.png assets/splash.png
+            # Gera os recursos para o Android
+            npx @capacitor/assets generate --android --assetPath assets
+          else
+            echo "Aviso: public/Icon.png não encontrado. Pulando geração de ícones customizados."
+          fi
+
+      - name: Scripted Manifest & Permissions Injection
         run: |
           MANIFEST="android/app/src/main/AndroidManifest.xml"
           if [ -f "$MANIFEST" ]; then
-            echo "Formatando o Manifesto para modo Rumo..."
+            echo "Injetando permissões críticas no AndroidManifest..."
             
-            # Bloco de permissões essenciais
-            cat <<EOF > perms.txt
-    <!-- Rumo: Permissões de Localização -->
+            # Criamos o bloco de permissões baseado no projeto de sucesso
+            cat <<EOF > native_perms.xml
+    <!-- PERMISSÕES DE LOCALIZAÇÃO (GPS NATIVO) -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     
-    <!-- Rumo: Notificações e Sistema -->
+    <!-- CONECTIVIDADE E NOTIFICAÇÕES -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.VIBRATE" />
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     
-    <!-- Hardware -->
+    <!-- RECURSOS DO SISTEMA -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    
+    <!-- HARDWARE REQUIREMENTS -->
     <uses-feature android:name="android.hardware.location.gps" android:required="true" />
 EOF
 
-            # Limpa permissões padrão para evitar duplicidade
+            # Removemos permissões existentes para evitar duplicação ou conflitos
             sed -i '/android.permission/d' $MANIFEST
             sed -i '/android.hardware.location.gps/d' $MANIFEST
 
-            # Injeta as permissões no topo (após a tag <manifest)
-            sed -i '/<manifest/r perms.txt' $MANIFEST
+            # Inserimos o bloco novo logo após a tag <manifest>
+            sed -i '/<manifest/r native_perms.xml' $MANIFEST
             
-            # Habilitar suporte a Picture-in-Picture e mudar configurações de atividade
+            # Suporte a Picture-in-Picture e Estabilização de Rotação na Activity Principal
             sed -i 's/<activity/<activity android:supportsPictureInPicture="true" android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"/g' $MANIFEST
             
             echo "Manifesto injetado com sucesso."
           else
-            echo "ERRO: Manifesto não encontrado!"
+            echo "Erro crítico: Arquivo de manifesto não encontrado!"
             exit 1
           fi
 
-      - name: Sincronizar Capacitor
+      - name: Capacitor Sync
         run: npx cap sync android
 
-      - name: Compilar APK (Debug)
+      - name: Build APK (Gradle Optimized)
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug
+          # Otimização de memória e daemon desativado como solicitado
+          ./gradlew assembleDebug --no-daemon -Dorg.gradle.jvmargs=-Xmx2048m
 
-      - name: Upload do APK
+      - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rumo-debug-apk
+          name: rumo-native-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
