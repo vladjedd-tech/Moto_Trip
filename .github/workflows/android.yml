@@ -1,116 +1,119 @@
-name: Build Rumo APK (Native + GPS Fixed)
+name: Gerar APK Rumo (Nativo + GPS)
 
 on:
   push:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
-  workflow_dispatch:
+  workflow_dispatch: # Permite iniciar manualmente no GitHub Actions
 
 jobs:
-  build:
+  build_android:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Source
+      - name: Checkout do Código
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Configurar Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: 'npm'
 
-      - name: Install Dependencies
+      - name: Instalar Dependências
         run: npm install --legacy-peer-deps
 
-      - name: Build Web Application
+      - name: Build do Projeto React
         run: npm run build
 
-      - name: Setup Java 21 (Temurin)
+      - name: Configurar Java 21
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '21'
 
-      - name: Setup Android SDK
+      - name: Configurar Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Initialize Capacitor Android
+      - name: Inicializar Capacitor Android
         run: |
           rm -rf android
           npx cap add android
 
-      - name: Smart Asset Generation (Icon/Splash)
+      - name: Gerar Ícones e Splash (Automação)
         run: |
+          # Verifica se Icon.png existe na pasta public ou raiz
           if [ -f "public/Icon.png" ]; then
-            echo "Icon.png encontrado. Gerando assets nativos..."
+            echo "Icon.png encontrado. Gerando recursos visuais..."
             mkdir -p assets
+            cp public/Icon.png assets/icon-only.png
+            cp public/Icon.png assets/icon-foreground.png
             cp public/Icon.png assets/icon.png
             cp public/Icon.png assets/splash.png
-            # Gera os recursos para o Android
+            cp public/Icon.png assets/splash-dark.png
             npx @capacitor/assets generate --android --assetPath assets
           else
-            echo "Aviso: public/Icon.png não encontrado. Pulando geração de ícones customizados."
+            echo "Aviso: public/Icon.png não encontrado. Usando ícones padrão do Capacitor."
           fi
 
-      - name: Scripted Manifest & Permissions Injection
+      - name: Injetar Permissões Nativa (GPS, Alerta, Background)
         run: |
           MANIFEST="android/app/src/main/AndroidManifest.xml"
           if [ -f "$MANIFEST" ]; then
-            echo "Injetando permissões críticas no AndroidManifest..."
+            echo "Injetando permissões no AndroidManifest.xml..."
             
-            # Criamos o bloco de permissões baseado no projeto de sucesso
-            cat <<EOF > native_perms.xml
-    <!-- PERMISSÕES DE LOCALIZAÇÃO (GPS NATIVO) -->
+            # Bloco de permissões consolidado
+            cat <<EOF > perms_injection.xml
+    <!-- Permissões de Localização e Background -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     
-    <!-- CONECTIVIDADE E NOTIFICAÇÕES -->
+    <!-- Notificações e Internet -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
     
-    <!-- RECURSOS DO SISTEMA -->
+    <!-- Permissões Avançadas (Sobrescrever Apps e Bateria) -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     
-    <!-- HARDWARE REQUIREMENTS -->
+    <!-- Requisito de Hardware para GPS -->
     <uses-feature android:name="android.hardware.location.gps" android:required="true" />
 EOF
 
-            # Removemos permissões existentes para evitar duplicação ou conflitos
+            # Remove permissões antigas para evitar duplicidade
             sed -i '/android.permission/d' $MANIFEST
             sed -i '/android.hardware.location.gps/d' $MANIFEST
 
-            # Inserimos o bloco novo logo após a tag <manifest>
-            sed -i '/<manifest/r native_perms.xml' $MANIFEST
+            # Injeta as novas permissões logo após a tag <manifest>
+            sed -i '/<manifest/r perms_injection.xml' $MANIFEST
             
-            # Suporte a Picture-in-Picture e Estabilização de Rotação na Activity Principal
+            # Suporte a Picture-in-Picture e Estabilização de Configurações
             sed -i 's/<activity/<activity android:supportsPictureInPicture="true" android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"/g' $MANIFEST
             
-            echo "Manifesto injetado com sucesso."
+            echo "Manifesto atualizado com sucesso."
           else
-            echo "Erro crítico: Arquivo de manifesto não encontrado!"
+            echo "Erro: Manifesto não encontrado no caminho esperado."
             exit 1
           fi
 
-      - name: Capacitor Sync
+      - name: Sincronizar Capacitor
         run: npx cap sync android
 
-      - name: Build APK (Gradle Optimized)
+      - name: Compilar APK (Optimized Gradle)
         run: |
           cd android
           chmod +x gradlew
-          # Otimização de memória e daemon desativado como solicitado
+          # Otimização de memória solicitada: 2GB e sem daemon
           ./gradlew assembleDebug --no-daemon -Dorg.gradle.jvmargs=-Xmx2048m
 
-      - name: Upload Build Artifact
+      - name: Upload do APK Gerado
         uses: actions/upload-artifact@v4
         with:
-          name: rumo-native-debug-apk
+          name: rumo-app-final-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
