@@ -9,6 +9,7 @@ import { AlertCircle } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { Geolocation } from '@capacitor/geolocation';
 import { PushNotifications } from '@capacitor/push-notifications';
+import { LocalNotifications } from '@capacitor/local-notifications';
 import { Dialog } from '@capacitor/dialog';
 import { AppScreen, Trip, WeatherData } from './types';
 import HomeScreen from './components/HomeScreen';
@@ -63,10 +64,20 @@ export default function App() {
       setShowNotifications(prev => prev.filter(m => m !== msg));
     }, 5000);
 
-    // Capacitor Native Push (if applicable) or Web Notification
+    // Capacitor Native Notification
     if (Capacitor.isNativePlatform()) {
-      // In native we might use LocalNotifications if needed, 
-      // but for now let's keep it simple as standard UI notifications are already working via showNotifications.
+      try {
+        await LocalNotifications.schedule({
+          notifications: [{
+            title: "Alerta Rumo",
+            body: msg,
+            id: Math.floor(Math.random() * 10000),
+            schedule: { at: new Date(Date.now() + 100) }
+          }]
+        });
+      } catch (e) {
+        console.error("Native notification failed:", e);
+      }
     }
 
     if ("Notification" in window && Notification.permission === "granted") {
@@ -92,30 +103,39 @@ export default function App() {
     const initNative = async () => {
       if (Capacitor.isNativePlatform()) {
         try {
+          // Aguarda a ponte nativa estar pronta
           await new Promise(resolve => setTimeout(resolve, 3000));
           
-          // GPS
+          // 1. GPS - Localização exata e em background
           const locPerm = await Geolocation.checkPermissions();
           if (locPerm.location !== 'granted') {
             const req = await Geolocation.requestPermissions();
             if (req.location === 'granted') {
-              triggerNotification("GPS autorizado com sucesso!");
-              await Geolocation.getCurrentPosition({ enableHighAccuracy: true }).catch(() => {});
+              triggerNotification("GPS autorizado!");
             } else {
               await Dialog.alert({
                 title: 'GPS Necessário',
-                message: 'O Rumo precisa do GPS para rastrear sua viagem. Por favor, autorize nas configurações do Android.',
+                message: 'O Rumo precisa do seu GPS para funcionar. Por favor, autorize nas configurações.',
               });
             }
           }
 
-          // Push
-          const pushPerm = await PushNotifications.checkPermissions();
-          if (pushPerm.receive !== 'granted') {
-            await PushNotifications.requestPermissions();
-          }
+          // 2. Notificações Push e Locais
+          await PushNotifications.requestPermissions();
+          await LocalNotifications.requestPermissions();
+          
+          // Teste de notificação local imediata para validar
+          await LocalNotifications.schedule({
+            notifications: [{
+              title: "Rumo Ativado",
+              body: "O aplicativo está pronto para sua jornada.",
+              id: 1,
+              schedule: { at: new Date(Date.now() + 1000) }
+            }]
+          });
+
         } catch (e) {
-          console.error("Init Error:", e);
+          console.error("Native Init Error:", e);
         }
       }
     };
