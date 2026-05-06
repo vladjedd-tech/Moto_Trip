@@ -1,100 +1,97 @@
-name: Build Android APK (Rumo - Final)
+name: Build Rumo Native APK
 
 on:
   push:
-    branches: [ main, master ]
+    branches:
+      - main
+      - master
   pull_request:
-    branches: [ main, master ]
+    branches:
+      - main
+      - master
   workflow_dispatch:
 
 jobs:
-  build:
+  android-build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Source
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: 'npm'
 
-      - name: Install Dependencies
+      - name: Clean Install Dependencies
         run: npm install --legacy-peer-deps
 
-      - name: Build Web App
+      - name: Production Web Build
         run: npm run build
 
-      - name: Set up Java
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Set up Android SDK
+      - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Capacitor Fresh Add
+      - name: Capacitor Native Project Setup
         run: |
+          # Remove previous android folder to ensure clean state
           rm -rf android
           npx cap add android
 
-      - name: Hardened Permission Injection
+      - name: Native Permissions & Manifest Configuration
         run: |
           MANIFEST="android/app/src/main/AndroidManifest.xml"
           if [ -f "$MANIFEST" ]; then
-            echo "Injetando permissões nativas completas..."
+            echo "Injetando permissões críticas e recursos de hardware..."
             
-            cat <<EOF > perms.xml
-    <!-- Localização e Movimento -->
+            # Bloco de permissões consolidado
+            cat <<EOF > permissions_block.xml
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
-    
-    <!-- Comunicação e Notificações -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    
-    <!-- Sistema e Avançadas -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
-    
-    <!-- Hardware -->
     <uses-feature android:name="android.hardware.location.gps" android:required="true" />
 EOF
 
-            # Limpeza
+            # Remove duplicatas e injeta o bloco após a tag <manifest>
             sed -i '/android.permission/d' $MANIFEST
             sed -i '/android.hardware.location.gps/d' $MANIFEST
-
-            # Injeção
-            sed -i '/<manifest/r perms.xml' $MANIFEST
+            sed -i '/<manifest/r permissions_block.xml' $MANIFEST
             
-            # Picture-in-Picture e Configurações de Atividade
+            # Configura Picture-in-Picture e persistência de orientação na Activity
             sed -i 's/<activity/<activity android:supportsPictureInPicture="true" android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"/g' $MANIFEST
             
-            echo "Manifesto atualizado com sucesso."
+            echo "Manifesto processado com sucesso."
           else
-            echo "Erro: Manifesto não encontrado!"
+            echo "ERRO: O arquivo $MANIFEST não foi gerado pelo Capacitor."
             exit 1
           fi
 
-      - name: Capacitor Sync
+      - name: Sync Capacitor to Native
         run: npx cap sync android
 
-      - name: Build APK (Debug)
+      - name: Build Debug APK via Gradle
         run: |
           cd android
           chmod +x gradlew
           ./gradlew assembleDebug
 
-      - name: Upload APK
+      - name: Distribute APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rumo-app-v7-final
+          name: rumo-native-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
